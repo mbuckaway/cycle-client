@@ -53,3 +53,4 @@ class Settings(BaseSettings):
         default=INTERNAL_ENDPOINT, validation_alias="CYQL_INTERNAL_ENDPOINT"
     )
     timeout_seconds: float = Field(default=10.0, validation_alias="CYQL_TIMEOUT_SECONDS")
+    timezone: str | None = Field(default=None, validation_alias="CYQL_TIMEZONE")

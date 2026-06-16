@@ -49,3 +49,19 @@ def test_settings_auth_mode_reads_session_token_value(monkeypatch: pytest.Monkey
     settings = Settings(_env_file=None)
 
     assert settings.auth_mode is AuthMode.SESSION_TOKEN
+
+
+def test_settings_timezone_defaults_to_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CYQL_TIMEZONE", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.timezone is None
+
+
+def test_settings_reads_timezone_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CYQL_TIMEZONE", "America/Toronto")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.timezone == "America/Toronto"

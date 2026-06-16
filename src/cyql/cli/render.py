@@ -14,7 +14,7 @@ JSON (``--json``); the branch lives once in :func:`_emit`.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import Any
 
 from rich.console import Console, RenderableType
@@ -49,8 +49,8 @@ def _text(value: object) -> str:
     return "-" if value is None else str(value)
 
 
-def _dt(value: datetime | None) -> str:
-    return "-" if value is None else value.strftime("%Y-%m-%d %H:%M")
+def _dt(value: datetime | None, tz: tzinfo | None) -> str:
+    return "-" if value is None else value.astimezone(tz).strftime("%Y-%m-%d %H:%M")
 
 
 def _km(value: float | None) -> str:
@@ -61,9 +61,9 @@ def _dump(items: Sequence[object]) -> list[Any]:
     return [item.model_dump(mode="json") for item in items]  # type: ignore[attr-defined]
 
 
-def _ride_detail_table(ride: Ride) -> Table:
+def _ride_detail_table(ride: Ride, tz: tzinfo | None) -> Table:
     table = Table(title=ride.title or "Ride", show_header=False)
-    table.add_row("When", _dt(ride.start_time))
+    table.add_row("When", _dt(ride.start_time, tz))
     table.add_row("Location", _text(ride.location))
     table.add_row("Distance", _km(ride.distance))
     table.add_row("Type", _text(ride.ride_type))
@@ -72,19 +72,21 @@ def _ride_detail_table(ride: Ride) -> Table:
     return table
 
 
-def render_ride_detail(console: Console, ride: Ride, json_output: bool) -> None:
+def render_ride_detail(
+    console: Console, ride: Ride, json_output: bool, tz: tzinfo | None = None
+) -> None:
     """Render a single ride's details."""
-    _emit(console, json_output, ride.model_dump(mode="json"), lambda: _ride_detail_table(ride))
+    _emit(console, json_output, ride.model_dump(mode="json"), lambda: _ride_detail_table(ride, tz))
 
 
-def _rides_table(rides: Sequence[Ride]) -> Table:
+def _rides_table(rides: Sequence[Ride], tz: tzinfo | None) -> Table:
     table = Table(title="Upcoming rides")
     for column in ("Title", "When", "Distance", "Type", "Riders"):
         table.add_column(column)
     for ride in rides:
         table.add_row(
             _text(ride.title),
-            _dt(ride.start_time),
+            _dt(ride.start_time, tz),
             _km(ride.distance),
             _text(ride.ride_type),
             _text(ride.participants_count),
@@ -92,9 +94,11 @@ def _rides_table(rides: Sequence[Ride]) -> Table:
     return table
 
 
-def render_rides(console: Console, rides: Sequence[Ride], json_output: bool) -> None:
+def render_rides(
+    console: Console, rides: Sequence[Ride], json_output: bool, tz: tzinfo | None = None
+) -> None:
     """Render a list of rides as a table."""
-    _emit(console, json_output, _dump(rides), lambda: _rides_table(rides))
+    _emit(console, json_output, _dump(rides), lambda: _rides_table(rides, tz))
 
 
 def _stats_table(stats: ClubStats) -> Table:
@@ -140,29 +144,33 @@ def render_members(console: Console, members: Sequence[Member], json_output: boo
     _emit(console, json_output, _dump(members), lambda: _members_table(members))
 
 
-def _events_table(events: Sequence[Event]) -> Table:
+def _events_table(events: Sequence[Event], tz: tzinfo | None) -> Table:
     table = Table(title="Events")
     for column in ("Title", "When", "Location"):
         table.add_column(column)
     for event in events:
-        table.add_row(_text(event.title), _dt(event.start_date_time), _text(event.location))
+        table.add_row(_text(event.title), _dt(event.start_date_time, tz), _text(event.location))
     return table
 
 
-def render_events(console: Console, events: Sequence[Event], json_output: bool) -> None:
+def render_events(
+    console: Console, events: Sequence[Event], json_output: bool, tz: tzinfo | None = None
+) -> None:
     """Render a list of events as a table."""
-    _emit(console, json_output, _dump(events), lambda: _events_table(events))
+    _emit(console, json_output, _dump(events), lambda: _events_table(events, tz))
 
 
-def _news_table(news: Sequence[News]) -> Table:
+def _news_table(news: Sequence[News], tz: tzinfo | None) -> Table:
     table = Table(title="News")
     for column in ("Title", "Date"):
         table.add_column(column)
     for article in news:
-        table.add_row(_text(article.title), _dt(article.publication_date))
+        table.add_row(_text(article.title), _dt(article.publication_date, tz))
     return table
 
 
-def render_news(console: Console, news: Sequence[News], json_output: bool) -> None:
+def render_news(
+    console: Console, news: Sequence[News], json_output: bool, tz: tzinfo | None = None
+) -> None:
     """Render a list of news articles as a table."""
-    _emit(console, json_output, _dump(news), lambda: _news_table(news))
+    _emit(console, json_output, _dump(news), lambda: _news_table(news, tz))

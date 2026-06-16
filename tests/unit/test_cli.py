@@ -168,6 +168,34 @@ def test_club_renders_name(cli_env: None) -> None:
 
 
 @respx.mock
+def test_nextride_localizes_time_to_configured_timezone(
+    cli_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CYQL_TIMEZONE", "America/Toronto")
+    ride = {"id": "r1", "title": "Dawn", "startTime": "2026-06-16T23:00:00Z"}
+    respx.post(URL).mock(return_value=_data({"rides": {"items": [ride]}}))
+
+    result = runner.invoke(app, ["nextride"])
+
+    assert result.exit_code == 0
+    assert "19:00" in result.output  # 23:00 UTC -> 19:00 EDT
+
+
+@respx.mock
+def test_unknown_timezone_falls_back_to_local(
+    cli_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CYQL_TIMEZONE", "Not/AZone")
+    ride = {"id": "r1", "title": "Dawn", "startTime": "2026-06-16T23:00:00Z"}
+    respx.post(URL).mock(return_value=_data({"rides": {"items": [ride]}}))
+
+    result = runner.invoke(app, ["nextride"])
+
+    assert result.exit_code == 0
+    assert "Dawn" in result.output
+
+
+@respx.mock
 def test_api_error_exits_nonzero(cli_env: None) -> None:
     respx.post(URL).mock(
         return_value=httpx.Response(200, json={"errors": [{"message": "ApiKeyInvalid"}]})

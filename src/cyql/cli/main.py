@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import tzinfo
 from itertools import islice
 from typing import Annotated
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import typer
 from rich.console import Console
@@ -41,8 +43,7 @@ JsonOption = Annotated[bool, typer.Option("--json", help="Output raw JSON instea
 CountOption = Annotated[int, typer.Option("--count", "-n", help="Maximum items to show.")]
 
 
-def _build_client() -> CyqlClient:
-    settings = Settings()
+def _build_client(settings: Settings) -> CyqlClient:
     try:
         auth = build_auth(settings)
     except MissingCredentialError as exc:
@@ -51,12 +52,29 @@ def _build_client() -> CyqlClient:
     return CyqlClient(auth, timeout=settings.timeout_seconds)
 
 
-@contextmanager
-def _client_session() -> Iterator[CyqlClient]:
-    """Yield a client, turning Cyql errors into a clean CLI message."""
-    client = _build_client()
+def _resolve_tz(settings: Settings) -> tzinfo | None:
+    """Resolve the display timezone; ``None`` means the system local zone."""
+    if not settings.timezone:
+        return None
     try:
-        yield client
+        return ZoneInfo(settings.timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        typer.secho(
+            f"Warning: unknown timezone {settings.timezone!r}; using local time.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return None
+
+
+@contextmanager
+def _client_session() -> Iterator[tuple[CyqlClient, tzinfo | None]]:
+    """Yield a client and display timezone, turning Cyql errors into a clean message."""
+    settings = Settings()
+    client = _build_client(settings)
+    tz = _resolve_tz(settings)
+    try:
+        yield client, tz
     except CyqlError as exc:
         typer.secho(f"Error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -78,20 +96,20 @@ def version() -> None:
 @app.command()
 def nextride(json_output: JsonOption = False) -> None:
     """Show the next upcoming ride."""
-    with _client_session() as client:
+    with _client_session() as (client, tz):
         ride = fetch_next_ride(client)
     if ride is None:
         typer.echo("No upcoming rides.")
         return
-    render.render_ride_detail(_console, ride, json_output)
+    render.render_ride_detail(_console, ride, json_output, tz=tz)
 
 
 @app.command()
 def rides(count: CountOption = 5, json_output: JsonOption = False) -> None:
     """List upcoming rides."""
-    with _client_session() as client:
+    with _client_session() as (client, tz):
         items = list(islice(fetch_rides(client, is_upcoming=True), count))
-    render.render_rides(_console, items, json_output)
+    render.render_rides(_console, items, json_output, tz=tz)
 
 
 @app.command()
@@ -100,25 +118,25 @@ def ride(
     json_output: JsonOption = False,
 ) -> None:
     """Show details of the first ride matching SEARCH."""
-    with _client_session() as client:
+    with _client_session() as (client, tz):
         items = list(islice(fetch_rides(client, search=search), 1))
     if not items:
         typer.echo(f"No ride matching {search!r}.")
         return
-    render.render_ride_detail(_console, items[0], json_output)
+    render.render_ride_detail(_console, items[0], json_output, tz=tz)
 
 
 @app.command()
 def stats(json_output: JsonOption = False) -> None:
     """Show club statistics."""
-    with _client_session() as client:
+    with _client_session() as (client, _tz):
         render.render_stats(_console, fetch_club_stats(client), json_output)
 
 
 @app.command()
 def members(count: CountOption = 25, json_output: JsonOption = False) -> None:
     """List club members (admin/local use)."""
-    with _client_session() as client:
+    with _client_session() as (client, _tz):
         items = list(islice(fetch_members(client), count))
     render.render_members(_console, items, json_output)
 
@@ -126,23 +144,23 @@ def members(count: CountOption = 25, json_output: JsonOption = False) -> None:
 @app.command()
 def events(count: CountOption = 10, json_output: JsonOption = False) -> None:
     """List club events."""
-    with _client_session() as client:
+    with _client_session() as (client, tz):
         items = list(islice(fetch_events(client), count))
-    render.render_events(_console, items, json_output)
+    render.render_events(_console, items, json_output, tz=tz)
 
 
 @app.command()
 def news(count: CountOption = 5, json_output: JsonOption = False) -> None:
     """List club news."""
-    with _client_session() as client:
+    with _client_session() as (client, tz):
         items = list(islice(fetch_news(client), count))
-    render.render_news(_console, items, json_output)
+    render.render_news(_console, items, json_output, tz=tz)
 
 
 @app.command()
 def club(json_output: JsonOption = False) -> None:
     """Show club information."""
-    with _client_session() as client:
+    with _client_session() as (client, _tz):
         render.render_club_info(_console, fetch_club_info(client), json_output)
 
 
