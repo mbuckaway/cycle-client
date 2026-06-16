@@ -1,0 +1,38 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Python virtual environment
+.venv/
+venv/
+
+# Byte-compiled / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage / test artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Local data (functional-test state, mock server scratch)
+*.sqlite3
+*.db
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
